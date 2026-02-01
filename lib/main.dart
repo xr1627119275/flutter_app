@@ -43,7 +43,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
 
     if (email.isEmpty || orderNo.isEmpty) {
       setState(() {
-        _errorMessage = '请输入邮箱和订单号';
+        _errorMessage = 'Please enter email and order number';
         _flowerPictureUrl = null;
         _imageLoaded = false;
       });
@@ -75,40 +75,40 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
               _errorMessage = null;
               _imageLoaded = false;
             });
-            // 预加载图片
+            // Preload image
             _preloadImage(imageUrl);
           } else {
             setState(() {
-              _errorMessage = '未找到订单信息或图片';
+              _errorMessage = 'Order information or image not found';
               _flowerPictureUrl = null;
               _imageLoaded = false;
             });
           }
         } else {
           setState(() {
-            _errorMessage = data['msg']?.toString() ?? '查询失败';
+            _errorMessage = data['msg']?.toString() ?? 'Query failed';
             _flowerPictureUrl = null;
             _imageLoaded = false;
           });
         }
       } else {
         setState(() {
-          _errorMessage = '查询失败: ${response.statusCode}';
+          _errorMessage = 'Query failed: ${response.statusCode}';
           _flowerPictureUrl = null;
           _imageLoaded = false;
         });
       }
     } catch (e) {
-      String errorMsg = '查询出错';
+      String errorMsg = 'Query error';
       if (e.toString().contains('Failed host lookup') || 
           e.toString().contains('No address associated with hostname')) {
-        errorMsg = '网络连接失败，请检查网络连接或域名是否正确';
+        errorMsg = 'Network connection failed, please check your network connection or domain name';
       } else if (e.toString().contains('SocketException')) {
-        errorMsg = '无法连接到服务器，请检查网络连接';
+        errorMsg = 'Unable to connect to server, please check your network connection';
       } else if (e.toString().contains('TimeoutException')) {
-        errorMsg = '请求超时，请稍后重试';
+        errorMsg = 'Request timeout, please try again later';
       } else {
-        errorMsg = '查询出错: ${e.toString()}';
+        errorMsg = 'Query error: ${e.toString()}';
       }
       setState(() {
         _errorMessage = errorMsg;
@@ -139,7 +139,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
         onError: (exception, stackTrace) {
           if (mounted) {
             setState(() {
-              _errorMessage = '图片加载失败';
+              _errorMessage = 'Image loading failed';
               _imageLoaded = false;
             });
           }
@@ -150,7 +150,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = '图片加载出错: $e';
+          _errorMessage = 'Image loading error: $e';
           _imageLoaded = false;
         });
       }
@@ -176,7 +176,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 订单查询表单卡片
+            // Order query form card
             Card(
               elevation: 2,
               shape: RoundedRectangleBorder(
@@ -267,7 +267,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
               ),
             ),
             const SizedBox(height: 16),
-            // 结果显示区域
+            // Result display area
             if (_errorMessage != null)
               Card(
                 elevation: 2,
@@ -283,7 +283,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
                   ),
                 ),
               ),
-            // 显示加载指示器（当图片URL存在但未加载完成时）
+            // Show loading indicator (when image URL exists but not loaded)
             if (_flowerPictureUrl != null && !_imageLoaded)
               Card(
                 elevation: 2,
@@ -297,7 +297,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
                   ),
                 ),
               ),
-            // 图片加载完成后显示
+            // Display after image is loaded
             if (_flowerPictureUrl != null && _imageLoaded)
               Card(
                 elevation: 2,
@@ -309,7 +309,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // 显示花束图片
+                      // Display flower image
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: Image.network(
@@ -324,7 +324,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // 显示文字
+                      // Display text
                       const Text(
                         'This is the arrangement that we have prepared for your recipient!',
                         textAlign: TextAlign.center,
