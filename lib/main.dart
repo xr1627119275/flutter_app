@@ -99,8 +99,19 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
         });
       }
     } catch (e) {
+      String errorMsg = '查询出错';
+      if (e.toString().contains('Failed host lookup') || 
+          e.toString().contains('No address associated with hostname')) {
+        errorMsg = '网络连接失败，请检查网络连接或域名是否正确';
+      } else if (e.toString().contains('SocketException')) {
+        errorMsg = '无法连接到服务器，请检查网络连接';
+      } else if (e.toString().contains('TimeoutException')) {
+        errorMsg = '请求超时，请稍后重试';
+      } else {
+        errorMsg = '查询出错: ${e.toString()}';
+      }
       setState(() {
-        _errorMessage = '查询出错: $e';
+        _errorMessage = errorMsg;
         _flowerPictureUrl = null;
         _imageLoaded = false;
       });
