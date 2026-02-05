@@ -12,7 +12,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flower',
+      title: 'Order Tracking',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
         useMaterial3: true,
@@ -30,7 +30,7 @@ class OrderQueryPage extends StatefulWidget {
 }
 
 class _OrderQueryPageState extends State<OrderQueryPage> {
-  final _emailController = TextEditingController(text: 'pollock123@aol.com');
+  final _emailController = TextEditingController(text: '');
   final _orderNoController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
