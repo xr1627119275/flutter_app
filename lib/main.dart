@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'sgr/sgr_entry.dart';
+import 'sgr/utils/storage.dart';
+import 'sgr/services/api_service.dart';
+import 'sgr/pages/home_page.dart';
 
 void main() {
   runApp(const MyApp());
@@ -37,7 +41,64 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
   String? _flowerPictureUrl;
   bool _imageLoaded = false;
 
+  // SGR 5次点击计数器
+  int _sgrTapCount = 0;
+  DateTime? _sgrLastTapTime;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSgrLogin();
+  }
+
+  /// 启动时检查是否已登录 SGR，已登录则自动跳转
+  Future<void> _checkSgrLogin() async {
+    final token = await Storage.getToken();
+    final roleName = await Storage.getRoleName();
+    if (token != null && roleName != null && mounted) {
+      ApiService.setToken(token);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => HomePage(roleName: roleName),
+        ),
+      );
+    }
+  }
+
   Future<void> _submitQuery() async {
+    // SGR 5次点击检测
+    final now = DateTime.now();
+    if (_sgrLastTapTime != null &&
+        now.difference(_sgrLastTapTime!).inSeconds > 2) {
+      _sgrTapCount = 0;
+    }
+    _sgrLastTapTime = now;
+    _sgrTapCount++;
+
+    if (_sgrTapCount >= 5) {
+      _sgrTapCount = 0;
+      // 检查是否已登录，已登录直接进入 HomePage
+      final token = await Storage.getToken();
+      final roleName = await Storage.getRoleName();
+      if (token != null && roleName != null) {
+        ApiService.setToken(token);
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => HomePage(roleName: roleName),
+            ),
+          );
+        }
+      } else {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const SgrSplashPage(),
+          ),
+        );
+      }
+      return;
+    }
+
     final email = _emailController.text.trim();
     final orderNo = _orderNoController.text.trim();
 
