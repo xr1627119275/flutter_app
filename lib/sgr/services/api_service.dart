@@ -1,8 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import '../models/login_response.dart';
 import '../models/order.dart';
+import '../utils/storage.dart';
+import '../pages/login_page.dart';
 
 export '../models/order.dart' show OrderStatus, DeliveryPerson, FloristPerson, OrderStatusHistory;
 
@@ -13,6 +16,9 @@ class ApiService {
   static String? _token;
   static const Duration _timeout = Duration(seconds: 30);
 
+  /// 全局 navigatorKey，由 main.dart 设置
+  static GlobalKey<NavigatorState>? navigatorKey;
+
   static void setToken(String? token) {
     _token = token;
   }
@@ -22,6 +28,35 @@ class ApiService {
         'content-type': 'application/json; charset=UTF-8',
         if (_token != null) 'token': _token!,
       };
+
+  /// 处理 401 未授权：清除凭证，跳转登录页
+  static Future<void> _handle401() async {
+    _token = null;
+    await Storage.clearAll();
+    final context = navigatorKey?.currentContext;
+    if (context != null) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (route) => false,
+      );
+    }
+  }
+
+  /// 检查响应状态码，401 时自动跳转登录页
+  static Future<void> _checkUnauthorized(http.Response response) async {
+    if (response.statusCode == 401) {
+      await _handle401();
+      throw Exception('登录已过期，请重新登录');
+    }
+  }
+
+  /// 检查 StreamedResponse 状态码
+  static Future<void> _checkUnauthorizedStreamed(http.StreamedResponse response) async {
+    if (response.statusCode == 401) {
+      await _handle401();
+      throw Exception('登录已过期，请重新登录');
+    }
+  }
 
   // Login
   static Future<LoginResponse> login({
@@ -114,6 +149,8 @@ class ApiService {
           .get(uri, headers: _headers)
           .timeout(_timeout);
 
+      await _checkUnauthorized(response);
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         return OrderListResponse.fromJson(jsonData);
@@ -138,6 +175,8 @@ class ApiService {
       final response = await http
           .get(url, headers: _headers)
           .timeout(_timeout);
+
+      await _checkUnauthorized(response);
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -173,6 +212,7 @@ class ApiService {
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
 
       final streamedResponse = await request.send().timeout(_timeout);
+      await _checkUnauthorizedStreamed(streamedResponse);
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
@@ -209,6 +249,7 @@ class ApiService {
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
 
       final streamedResponse = await request.send().timeout(_timeout);
+      await _checkUnauthorizedStreamed(streamedResponse);
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
@@ -240,6 +281,8 @@ class ApiService {
           .get(url, headers: _headers)
           .timeout(_timeout);
 
+      await _checkUnauthorized(response);
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         if (jsonData['code'] == 0) {
@@ -270,6 +313,8 @@ class ApiService {
           .get(url, headers: _headers)
           .timeout(_timeout);
 
+      await _checkUnauthorized(response);
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         if (jsonData['code'] == 0) {
@@ -299,6 +344,8 @@ class ApiService {
       final response = await http
           .get(url, headers: _headers)
           .timeout(_timeout);
+
+      await _checkUnauthorized(response);
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -338,6 +385,8 @@ class ApiService {
           .post(url, headers: _headers, body: body)
           .timeout(_timeout);
 
+      await _checkUnauthorized(response);
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         if (jsonData['code'] == 0) {
@@ -374,6 +423,8 @@ class ApiService {
       final response = await http
           .post(url, headers: _headers, body: body)
           .timeout(_timeout);
+
+      await _checkUnauthorized(response);
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -412,6 +463,8 @@ class ApiService {
           .post(url, headers: _headers, body: body)
           .timeout(_timeout);
 
+      await _checkUnauthorized(response);
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         if (jsonData['code'] == 0) {
@@ -439,13 +492,13 @@ class ApiService {
     required String filePath,
   }) async {
     try {
-      final url = Uri.parse('$baseUrl/mall/mallorder/updateAddressImage');
+      final url = Uri.parse('$baseUrl/mall/mallorder/updateAddressPicture?id=$orderId');
       final request = http.MultipartRequest('POST', url);
       request.headers.addAll(_headers);
-      request.fields['id'] = orderId.toString();
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
 
       final streamedResponse = await request.send().timeout(_timeout);
+      await _checkUnauthorizedStreamed(streamedResponse);
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
@@ -482,6 +535,7 @@ class ApiService {
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
 
       final streamedResponse = await request.send().timeout(_timeout);
+      await _checkUnauthorizedStreamed(streamedResponse);
       final response = await http.Response.fromStream(streamedResponse);
 
       if (response.statusCode == 200) {
@@ -527,6 +581,8 @@ class ApiService {
           .post(url, headers: _headers, body: body)
           .timeout(_timeout);
 
+      await _checkUnauthorized(response);
+
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
         if (jsonData['code'] == 0) {
@@ -555,6 +611,8 @@ class ApiService {
       final response = await http
           .get(url, headers: _headers)
           .timeout(_timeout);
+
+      await _checkUnauthorized(response);
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -593,6 +651,8 @@ class ApiService {
       final response = await http
           .post(url, headers: _headers, body: body)
           .timeout(_timeout);
+
+      await _checkUnauthorized(response);
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);

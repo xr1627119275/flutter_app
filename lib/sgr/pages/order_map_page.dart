@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -189,11 +190,13 @@ class _OrderMapPageState extends State<OrderMapPage> {
   }
 
   // 判断订单日期类型
+  // 1 = 今天, 2 = 明天(next day), 3 = 其他跨天, 0 = 默认
   int _getNowDate(Order order) {
     final now = DateTime.now();
     final todayDate = DateTime(now.year, now.month, now.day);
     final tomorrowDate = todayDate.add(const Duration(days: 1));
     
+    // 根据 selectedDay 确定订单日期
     DateTime orderDate;
     switch (_selectedDay) {
       case 'today':
@@ -210,37 +213,47 @@ class _OrderMapPageState extends State<OrderMapPage> {
     }
     
     if (orderDate == todayDate) {
-      return 1;
+      return 1; // 今天
     } else if (orderDate == tomorrowDate) {
-      return 2;
+      return 2; // 明天 (next day) - 显示 N
     } else {
-      return 3;
+      return 3; // 其他跨天
     }
   }
   
+  // 判断是否是 next day 订单
+  bool _isNextDay(Order order) {
+    return _getNowDate(order) == 2;
+  }
+
+  // 获取 marker 颜色
   Color _getMarkerColor(Order order) {
     final status = order.orderStatus?.toLowerCase() ?? '';
     
+    // Delivered - 红色
     if (status == 'delivered') {
       return Colors.red;
     }
     
+    // Cancelled/Canceled - 黑色
     if (status == 'cancelled' || status == 'canceled') {
       return Colors.black;
     }
     
+    // 根据日期类型返回颜色
     final nowDate = _getNowDate(order);
     if (nowDate == 2) {
-      return Colors.orange;
+      return Colors.orange; // Next day - 橙色
     } else if (nowDate == 3) {
-      return Colors.orange;
+      return Colors.orange; // 其他跨天 - 橙色
     } else if (nowDate == 1) {
-      return Colors.green;
+      return Colors.green; // 今天 - 绿色
     }
     
-    return Colors.blue;
+    return Colors.blue; // 默认 - 蓝色
   }
 
+  // 查找订单对应的 driver
   DeliveryPerson? _findDeliveryPerson(Order order) {
     if (order.delivery == null || order.delivery == 0) return null;
     try {
@@ -262,15 +275,29 @@ class _OrderMapPageState extends State<OrderMapPage> {
     return driver != null && driver.img != null && driver.img!.isNotEmpty;
   }
 
+  // 创建 marker icon
   Future<BitmapDescriptor> _createMarkerIcon(Order order, int number) async {
+    final isMail = order.tags?.toLowerCase().contains('mail') ?? false;
     final isOutForDelivery = order.orderStatus?.toLowerCase() == 'out for delivery';
+    final isNextDay = _isNextDay(order);
     final color = _getMarkerColor(order);
-    
+
+    // 构建标签：orderNumber + driverName
+    final driver = _findDeliveryPerson(order);
+    final driverName = driver?.name ?? '';
+    final tag = order.tags ?? '';
+    final labelParts = [
+      '#${order.orderNumber}',
+      if (tag.isNotEmpty) tag,
+      if (driverName.isNotEmpty) driverName,
+    ];
+    final label = labelParts.join(' ');
+
+    // 检查是否应该显示 driver 图片
     if (_shouldShowDriverImage(order)) {
-      final driver = _findDeliveryPerson(order);
       if (driver != null && driver.img != null && driver.img!.isNotEmpty) {
         try {
-          return await _createDriverMarkerIcon(driver.img!, isOutForDelivery, number);
+          return await _createDriverMarkerIcon(driver.img!, isOutForDelivery, number, label);
         } catch (e) {
           print('Error loading driver image: $e');
         }
@@ -278,8 +305,34 @@ class _OrderMapPageState extends State<OrderMapPage> {
     }
 
     const double scale = 3.0;
-    const double logicalW = 24.0;
-    const double logicalH = 32.0;
+    const double pinW = 24.0;
+    const double pinH = 32.0;
+    const double labelFontSize = 6.0;
+    const double labelPadH = 3.0;
+    const double labelPadV = 2.0;
+    const double gap = 2.0;
+
+    // 测量标签
+    final labelTp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          color: Colors.black87,
+          fontSize: labelFontSize,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '...',
+    );
+    labelTp.layout(maxWidth: 100);
+
+    final labelBgW = labelTp.width + labelPadH * 2;
+    final labelBgH = labelTp.height + labelPadV * 2;
+    final double logicalW = math.max(pinW, labelBgW);
+    final double logicalH = pinH + gap + labelBgH;
     final double w = logicalW * scale;
     final double h = logicalH * scale;
 
@@ -288,16 +341,17 @@ class _OrderMapPageState extends State<OrderMapPage> {
     canvas.scale(scale);
 
     final centerX = logicalW / 2;
-    final circleRadius = logicalW / 2 - 2;
+    final circleRadius = pinW / 2 - 2;
     final circleY = circleRadius + 2;
 
+    // 绘制 pin 形状
     final pinPath = Path();
     pinPath.addOval(Rect.fromCircle(
       center: Offset(centerX, circleY),
       radius: circleRadius,
     ));
     pinPath.moveTo(centerX - circleRadius * 0.55, circleY + circleRadius * 0.75);
-    pinPath.lineTo(centerX, logicalH - 1);
+    pinPath.lineTo(centerX, pinH - 1);
     pinPath.lineTo(centerX + circleRadius * 0.55, circleY + circleRadius * 0.75);
     pinPath.close();
 
@@ -324,21 +378,51 @@ class _OrderMapPageState extends State<OrderMapPage> {
       );
     }
 
-    final numberText = number.toString();
-    final tp = TextPainter(
-      text: TextSpan(
-        text: numberText,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: numberText.length > 2 ? 7 : 9,
-          fontWeight: FontWeight.bold,
+    if (_isAdmin) {
+      canvas.drawCircle(
+        Offset(centerX, circleY),
+        3,
+        Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill
+          ..isAntiAlias = true,
+      );
+    } else {
+      final numberText = number.toString();
+      final tp = TextPainter(
+        text: TextSpan(
+          text: numberText,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: numberText.length > 2 ? 7 : 9,
+            fontWeight: FontWeight.bold,
+          ),
         ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(centerX - tp.width / 2, circleY - tp.height / 2));
+    }
+
+    // 标签背景
+    final labelY = pinH + gap;
+    final labelBgRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(centerX, labelY + labelBgH / 2),
+        width: labelBgW,
+        height: labelBgH,
       ),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
+      const Radius.circular(3),
     );
-    tp.layout();
-    tp.paint(canvas, Offset(centerX - tp.width / 2, circleY - tp.height / 2));
+    canvas.drawRRect(labelBgRect, Paint()
+      ..color = Colors.white.withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill);
+    canvas.drawRRect(labelBgRect, Paint()
+      ..color = Colors.grey.withValues(alpha: 0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5);
+    labelTp.paint(canvas, Offset(centerX - labelTp.width / 2, labelY + labelPadV));
 
     final picture = recorder.endRecording();
     final image = await picture.toImage(w.toInt(), h.toInt());
@@ -348,12 +432,39 @@ class _OrderMapPageState extends State<OrderMapPage> {
     return BitmapDescriptor.bytes(bytes, imagePixelRatio: scale);
   }
 
-  Future<BitmapDescriptor> _createDriverMarkerIcon(String imageUrl, bool isOutForDelivery, int number) async {
+  // 创建 driver 图片 marker
+  Future<BitmapDescriptor> _createDriverMarkerIcon(String imageUrl, bool isOutForDelivery, int number, String label) async {
     const double scale = 3.0;
-    const double logicalSize = 28.0;
-    final double size = logicalSize * scale;
-    final double imgSize = isOutForDelivery ? size - 18 : size - 6;
-    
+    const double avatarSize = 28.0;
+    final double pxAvatarSize = avatarSize * scale; // 84
+    final double imgSize = isOutForDelivery ? pxAvatarSize - 18 : pxAvatarSize - 6;
+    const double labelFontSize = 18.0; // 实际像素（不经过 scale）
+    const double labelPadH = 8.0;
+    const double labelPadV = 4.0;
+    const double gap = 4.0;
+
+    // 测量标签（实际像素坐标）
+    final labelTp = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          color: Colors.black87,
+          fontSize: labelFontSize,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      textAlign: TextAlign.center,
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+      ellipsis: '...',
+    );
+    labelTp.layout(maxWidth: 300);
+
+    final labelBgW = labelTp.width + labelPadH * 2;
+    final labelBgH = labelTp.height + labelPadV * 2;
+    final double totalW = math.max(pxAvatarSize, labelBgW);
+    final double totalH = pxAvatarSize + gap + labelBgH;
+
     final response = await http.get(Uri.parse(imageUrl));
     if (response.statusCode != 200) {
       throw Exception('Failed to load image');
@@ -370,13 +481,15 @@ class _OrderMapPageState extends State<OrderMapPage> {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
 
-    final center = Offset(size / 2, size / 2);
+    final centerX = totalW / 2;
+    final avatarCenterY = pxAvatarSize / 2;
+    final center = Offset(centerX, avatarCenterY);
     final radius = imgSize / 2;
 
     if (isOutForDelivery) {
       canvas.drawCircle(
         center,
-        size / 2 - 3,
+        pxAvatarSize / 2 - 3,
         Paint()
           ..color = Colors.green
           ..style = PaintingStyle.stroke
@@ -398,36 +511,57 @@ class _OrderMapPageState extends State<OrderMapPage> {
       ..strokeWidth = 3.0
       ..isAntiAlias = true);
 
-    final badgeRadius = 10.0;
-    final badgeCenter = Offset(size - badgeRadius - 2, size - badgeRadius - 2);
-    canvas.drawCircle(badgeCenter, badgeRadius, Paint()
-      ..color = Colors.deepPurple
-      ..style = PaintingStyle.fill
-      ..isAntiAlias = true);
-    canvas.drawCircle(badgeCenter, badgeRadius, Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..isAntiAlias = true);
+    if (!_isAdmin) {
+      final badgeRadius = 10.0;
+      final badgeCenter = Offset(centerX + pxAvatarSize / 2 - badgeRadius - 2, avatarCenterY + pxAvatarSize / 2 - badgeRadius - 2);
+      canvas.drawCircle(badgeCenter, badgeRadius, Paint()
+        ..color = Colors.deepPurple
+        ..style = PaintingStyle.fill
+        ..isAntiAlias = true);
+      canvas.drawCircle(badgeCenter, badgeRadius, Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..isAntiAlias = true);
 
-    final numberText = number.toString();
-    final tp = TextPainter(
-      text: TextSpan(
-        text: numberText,
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: numberText.length > 2 ? 9 : 11,
-          fontWeight: FontWeight.bold,
+      final numberText = number.toString();
+      final tp = TextPainter(
+        text: TextSpan(
+          text: numberText,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: numberText.length > 2 ? 9 : 11,
+            fontWeight: FontWeight.bold,
+          ),
         ),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      );
+      tp.layout();
+      tp.paint(canvas, Offset(badgeCenter.dx - tp.width / 2, badgeCenter.dy - tp.height / 2));
+    }
+
+    // 标签背景
+    final labelY = pxAvatarSize + gap;
+    final labelBgRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(centerX, labelY + labelBgH / 2),
+        width: labelBgW,
+        height: labelBgH,
       ),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
+      const Radius.circular(6),
     );
-    tp.layout();
-    tp.paint(canvas, Offset(badgeCenter.dx - tp.width / 2, badgeCenter.dy - tp.height / 2));
+    canvas.drawRRect(labelBgRect, Paint()
+      ..color = Colors.white.withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill);
+    canvas.drawRRect(labelBgRect, Paint()
+      ..color = Colors.grey.withValues(alpha: 0.4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5);
+    labelTp.paint(canvas, Offset(centerX - labelTp.width / 2, labelY + labelPadV));
 
     final picture = recorder.endRecording();
-    final image = await picture.toImage(size.toInt(), size.toInt());
+    final image = await picture.toImage(totalW.toInt(), totalH.toInt());
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
     final bytes = byteData!.buffer.asUint8List();
 
@@ -459,6 +593,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
         if (order.longitude! > maxLng) maxLng = order.longitude!;
       }
 
+      // Ensure bounds are valid
       if (minLat == maxLat) {
         minLat -= 0.01;
         maxLat += 0.01;
@@ -479,6 +614,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
       );
     } catch (e) {
       print('Error fitting bounds: $e');
+      // If error, at least move to first order position
       if (validOrders.isNotEmpty) {
         _mapController?.animateCamera(
           CameraUpdate.newLatLngZoom(
@@ -521,6 +657,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
     }
   }
 
+  // 过滤后的订单
   List<Order> get _filteredOrders {
     return _orders.where((order) {
       final status = order.orderStatus ?? '';
@@ -805,6 +942,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
       ),
       body: Column(
         children: [
+          // 日期筛选
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
             color: Colors.grey[100],
@@ -828,6 +966,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
               ],
             ),
           ),
+          // 状态筛选
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             color: Colors.grey[50],
@@ -904,6 +1043,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
               ],
             ),
           ),
+          // Map
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())

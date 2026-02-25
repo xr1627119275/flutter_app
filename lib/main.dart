@@ -6,7 +6,11 @@ import 'sgr/utils/storage.dart';
 import 'sgr/services/api_service.dart';
 import 'sgr/pages/home_page.dart';
 
+/// 全局 navigatorKey，用于在无 BuildContext 的地方（如 ApiService）执行导航
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 void main() {
+  ApiService.navigatorKey = navigatorKey;
   runApp(const MyApp());
 }
 
@@ -16,6 +20,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Order Tracking',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.green),
@@ -57,7 +62,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
     final roleName = await Storage.getRoleName();
     if (token != null && roleName != null && mounted) {
       ApiService.setToken(token);
-      Navigator.of(context).push(
+      Navigator.of(context).pushReplacement(
         MaterialPageRoute(
           builder: (context) => HomePage(roleName: roleName),
         ),

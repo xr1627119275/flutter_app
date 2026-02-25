@@ -6,7 +6,43 @@ import '../models/order.dart';
 import '../services/api_service.dart';
 import '../pages/order_operation_page.dart';
 
+void _showLoadingDialog(BuildContext context, [String message = 'Loading...']) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PopScope(
+      canPop: false,
+      child: Center(
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+                const SizedBox(width: 16),
+                Text(message, style: const TextStyle(fontSize: 14)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+void _hideLoadingDialog(BuildContext context) {
+  Navigator.of(context, rootNavigator: true).pop();
+}
+
 /// 显示订单卡片底部弹窗
+///
+/// [context] - BuildContext
+/// [order] - 订单数据
+/// [statusList] - 状态列表
+/// [deliveryList] - 配送员列表
+/// [floristList] - 花艺师列表
+/// [onDataChanged] - 数据变更回调（刷新列表/地图）
 void showOrderCardSheet({
   required BuildContext context,
   required Order order,
@@ -29,21 +65,27 @@ void showOrderCardSheet({
     builder: (sheetContext) => StatefulBuilder(
       builder: (sheetContext, setModalState) => SizedBox(
         height: MediaQuery.of(context).size.height * 0.85,
-        child: _OrderCardContent(
-          order: currentOrder,
-          statusList: statusList,
-          deliveryList: deliveryList,
-          floristList: floristList,
-          roleName: roleName,
-          onOrderUpdated: (updatedOrder) {
-            setModalState(() {
-              currentOrder = updatedOrder;
-            });
-          },
-          onDataChanged: onDataChanged,
-          onClose: () => Navigator.pop(sheetContext),
-          parentContext: context,
-          showDetailButton: showDetailButton,
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          child: Scaffold(
+            backgroundColor: Colors.white,
+            body: _OrderCardContent(
+              order: currentOrder,
+              statusList: statusList,
+              deliveryList: deliveryList,
+              floristList: floristList,
+              roleName: roleName,
+              onOrderUpdated: (updatedOrder) {
+                setModalState(() {
+                  currentOrder = updatedOrder;
+                });
+              },
+              onDataChanged: onDataChanged,
+              onClose: () => Navigator.pop(sheetContext),
+              parentContext: context,
+              showDetailButton: showDetailButton,
+            ),
+          ),
         ),
       ),
     ),
@@ -102,6 +144,7 @@ class _OrderCardContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
+        // Drag indicator
         Container(
           margin: const EdgeInsets.symmetric(vertical: 8),
           width: 40,
@@ -111,6 +154,7 @@ class _OrderCardContent extends StatelessWidget {
             borderRadius: BorderRadius.circular(2),
           ),
         ),
+        // Header
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: Row(
@@ -128,13 +172,16 @@ class _OrderCardContent extends StatelessWidget {
                   orderId: order.id,
                   onStatusChanged: (newStatus) async {
                     if (order.id != null) {
+                      _showLoadingDialog(context, 'Updating...');
                       try {
                         await ApiService.updateOrderStatus(orderId: order.id!, orderStatus: newStatus);
+                        _hideLoadingDialog(context);
                         onOrderUpdated(order.copyWith(orderStatus: newStatus));
                         onDataChanged();
                         _showSnackBar(context, 'Status updated', Colors.green);
                       } catch (e) {
-                        _showSnackBar(context, 'Failed to update status', Colors.red);
+                        _hideLoadingDialog(context);
+                        _showSnackBar(context, '$e', Colors.red);
                       }
                     }
                   },
@@ -159,6 +206,7 @@ class _OrderCardContent extends StatelessWidget {
           ),
         ),
         const Divider(height: 1),
+        // Content
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(12),
@@ -180,6 +228,7 @@ class _OrderCardContent extends StatelessWidget {
                     order: order,
                     deliveryList: deliveryList,
                     floristList: floristList,
+                    onOrderUpdated: onOrderUpdated,
                     onDataChanged: onDataChanged,
                     onShowSuccess: (msg) => _showSnackBar(context, msg, Colors.green),
                     onShowError: (msg) => _showSnackBar(context, msg, Colors.red),
@@ -195,6 +244,7 @@ class _OrderCardContent extends StatelessWidget {
                   isFlorist: _isFlorist,
                   isDriver: _isDriver,
                   onOrderUpdated: onOrderUpdated,
+                  onDataChanged: onDataChanged,
                   onShowSuccess: (msg) => _showSnackBar(context, msg, Colors.green),
                   onShowError: (msg) => _showSnackBar(context, msg, Colors.red),
                 ),
@@ -240,6 +290,8 @@ class _OrderCardContent extends StatelessWidget {
     );
   }
 }
+
+// ============ Status 选择器 ============
 
 class _StatusSelector extends StatelessWidget {
   final String? currentStatus;
@@ -300,6 +352,8 @@ class _StatusSelector extends StatelessWidget {
     );
   }
 }
+
+// ============ 信息行 ============
 
 class _InfoRow extends StatelessWidget {
   final String label;
@@ -363,6 +417,8 @@ class _InfoRowWithCopy extends StatelessWidget {
   }
 }
 
+// ============ 地址行 ============
+
 class _AddressRow extends StatelessWidget {
   final Order order;
   final VoidCallback onCopy;
@@ -415,10 +471,13 @@ class _AddressRow extends StatelessWidget {
   }
 }
 
+// ============ Driver / Florist 分配 ============
+
 class _AssignmentSection extends StatelessWidget {
   final Order order;
   final List<DeliveryPerson> deliveryList;
   final List<FloristPerson> floristList;
+  final ValueChanged<Order> onOrderUpdated;
   final VoidCallback onDataChanged;
   final ValueChanged<String> onShowSuccess;
   final ValueChanged<String> onShowError;
@@ -427,6 +486,7 @@ class _AssignmentSection extends StatelessWidget {
     required this.order,
     required this.deliveryList,
     required this.floristList,
+    required this.onOrderUpdated,
     required this.onDataChanged,
     required this.onShowSuccess,
     required this.onShowError,
@@ -458,6 +518,7 @@ class _AssignmentSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
         children: [
+          // Driver
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -472,12 +533,16 @@ class _AssignmentSection extends StatelessWidget {
                   items: deliveryList.map((p) => _SelectItem(id: p.id, name: p.name, isSelected: p.id == order.delivery)).toList(),
                   onSelected: (id) async {
                     if (order.id != null) {
+                      _showLoadingDialog(context, 'Updating...');
                       try {
                         await ApiService.updateOrderDelivery(orderId: order.id!, deliveryId: id);
+                        _hideLoadingDialog(context);
+                        onOrderUpdated(order.copyWith(delivery: id));
                         onDataChanged();
                         onShowSuccess('Driver updated');
                       } catch (e) {
-                        onShowError('Failed to update driver');
+                        _hideLoadingDialog(context);
+                        onShowError('$e');
                       }
                     }
                   },
@@ -486,6 +551,7 @@ class _AssignmentSection extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
+          // Florist
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -500,12 +566,16 @@ class _AssignmentSection extends StatelessWidget {
                   items: floristList.map((p) => _SelectItem(id: p.id, name: p.name, isSelected: p.id == order.florist)).toList(),
                   onSelected: (id) async {
                     if (order.id != null) {
+                      _showLoadingDialog(context, 'Updating...');
                       try {
                         await ApiService.updateOrderFlorist(orderId: order.id!, floristId: id);
+                        _hideLoadingDialog(context);
+                        onOrderUpdated(order.copyWith(florist: id));
                         onDataChanged();
                         onShowSuccess('Florist updated');
                       } catch (e) {
-                        onShowError('Failed to update florist');
+                        _hideLoadingDialog(context);
+                        onShowError('$e');
                       }
                     }
                   },
@@ -583,6 +653,8 @@ class _SelectItem {
   _SelectItem({required this.id, required this.name, required this.isSelected});
 }
 
+// ============ Tags ============
+
 class _TagsRow extends StatelessWidget {
   final String tags;
   const _TagsRow({required this.tags});
@@ -615,6 +687,8 @@ class _TagsRow extends StatelessWidget {
     );
   }
 }
+
+// ============ Contact ============
 
 class _ContactSection extends StatelessWidget {
   final Order order;
@@ -657,12 +731,15 @@ class _ContactSection extends StatelessWidget {
   }
 }
 
+// ============ Images (支持上传) ============
+
 class _ImagesSection extends StatefulWidget {
   final Order order;
   final bool isAdmin;
   final bool isFlorist;
   final bool isDriver;
   final ValueChanged<Order> onOrderUpdated;
+  final VoidCallback onDataChanged;
   final ValueChanged<String> onShowSuccess;
   final ValueChanged<String> onShowError;
 
@@ -672,6 +749,7 @@ class _ImagesSection extends StatefulWidget {
     this.isFlorist = false,
     this.isDriver = false,
     required this.onOrderUpdated,
+    required this.onDataChanged,
     required this.onShowSuccess,
     required this.onShowError,
   });
@@ -690,9 +768,7 @@ class _ImagesSectionState extends State<_ImagesSection> {
     if (orderId == null) return;
 
     try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Uploading...'), duration: Duration(seconds: 1)),
-      );
+      _showLoadingDialog(context, 'Uploading...');
 
       String imageUrl;
       Order updatedOrder;
@@ -715,12 +791,16 @@ class _ImagesSectionState extends State<_ImagesSection> {
           updatedOrder = widget.order.copyWith(deliveryPicture: imageUrl);
           break;
         default:
+          _hideLoadingDialog(context);
           return;
       }
 
+      _hideLoadingDialog(context);
       widget.onOrderUpdated(updatedOrder);
+      widget.onDataChanged();
       widget.onShowSuccess('Image uploaded');
     } catch (e) {
+      _hideLoadingDialog(context);
       widget.onShowError('Upload failed: $e');
     }
   }
