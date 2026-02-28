@@ -233,8 +233,11 @@ class _OrderCardContent extends StatelessWidget {
                     onShowSuccess: (msg) => _showSnackBar(context, msg, Colors.green),
                     onShowError: (msg) => _showSnackBar(context, msg, Colors.red),
                   ),
-                if (order.tags != null && order.tags!.isNotEmpty)
-                  _TagsRow(tags: order.tags!),
+                _TagsRow(
+                  tags: order.tags ?? '',
+                  canEdit: _isAdmin,
+                  onEditRequested: () => _showEditTagsDialog(context),
+                ),
                 _InfoRow(label: 'Message', value: order.note ?? '-'),
                 _InfoRow(label: 'Instructions', value: order.sgrInstValue ?? '-'),
                 _ContactSection(order: order),
@@ -288,6 +291,51 @@ class _OrderCardContent extends StatelessWidget {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color, duration: const Duration(seconds: 1)),
     );
+  }
+
+  Future<void> _showEditTagsDialog(BuildContext context) async {
+    final controller = TextEditingController(text: order.tags ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Tags'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: 'Enter tags, separated by commas',
+            labelText: 'Tags',
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && result != order.tags) {
+      if (order.id != null) {
+        _showLoadingDialog(context, 'Updating Tags...');
+        try {
+          await ApiService.updateOrderTags(orderId: order.id!, tags: result);
+          _hideLoadingDialog(context);
+          onOrderUpdated(order.copyWith(tags: result));
+          onDataChanged();
+          _showSnackBar(context, 'Tags updated', Colors.green);
+        } catch (e) {
+          _hideLoadingDialog(context);
+          _showSnackBar(context, 'Failed: $e', Colors.red);
+        }
+      }
+    }
   }
 }
 
@@ -657,11 +705,20 @@ class _SelectItem {
 
 class _TagsRow extends StatelessWidget {
   final String tags;
-  const _TagsRow({required this.tags});
+  final bool canEdit;
+  final VoidCallback onEditRequested;
+  
+  const _TagsRow({
+    required this.tags,
+    required this.canEdit,
+    required this.onEditRequested,
+  });
 
   @override
   Widget build(BuildContext context) {
     final tagList = tags.split(',').where((t) => t.trim().isNotEmpty).toList();
+    if (tagList.isEmpty && !canEdit) return const SizedBox.shrink();
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -675,11 +732,48 @@ class _TagsRow extends StatelessWidget {
             child: Wrap(
               spacing: 4,
               runSpacing: 4,
-              children: tagList.map((tag) => Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.blue[100], borderRadius: BorderRadius.circular(12)),
-                child: Text(tag.trim(), style: TextStyle(fontSize: 11, color: Colors.blue[800])),
-              )).toList(),
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                ...tagList.map((tag) {
+                  final t = tag.trim();
+                  final isCwc = t.toLowerCase().contains('cwc');
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: isCwc ? Colors.yellow[300] : Colors.blue[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      t,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isCwc ? Colors.orange[900] : Colors.blue[800],
+                      ),
+                    ),
+                  );
+                }),
+                if (canEdit)
+                  InkWell(
+                    onTap: onEditRequested,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: Colors.grey[300]!),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(tagList.isEmpty ? Icons.add : Icons.edit, size: 12, color: Colors.grey[600]),
+                          const SizedBox(width: 4),
+                          Text(tagList.isEmpty ? 'Add' : 'Edit', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ],

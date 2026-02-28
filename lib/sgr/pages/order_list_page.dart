@@ -3,6 +3,7 @@ import '../models/order.dart';
 import '../services/api_service.dart';
 import '../utils/storage.dart';
 import '../widgets/order_card_sheet.dart';
+import '../services/stomp_service.dart';
 import 'order_operation_page.dart';
 
 class OrderListPage extends StatefulWidget {
@@ -47,6 +48,35 @@ class _OrderListPageState extends State<OrderListPage> {
     super.initState();
     _loadInitialData();
     _loadOrders();
+    _initStomp();
+  }
+
+  void _initStomp() {
+    StompService().connect(
+      () {
+        print('[OrderListPage] STOMP connected successfully.');
+        // Subscribe to order changes
+        StompService.subscribe('/topic/orderChange', (data) {
+          print('[OrderListPage] Received /topic/orderChange: $data');
+          _loadOrders();
+        });
+
+        // Subscribe to new orders
+        StompService.subscribe('/topic/orderAdd', (data) {
+          print('[OrderListPage] Received /topic/orderAdd: $data');
+          _loadOrders();
+        });
+      },
+      (error) {
+        print('[OrderListPage] STOMP connection error: $error');
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    StompService.disconnect();
+    super.dispose();
   }
 
   Future<void> _loadInitialData() async {
@@ -647,10 +677,21 @@ class _OrderListPageState extends State<OrderListPage> {
                   spacing: 4,
                   runSpacing: 4,
                   children: order.tags!.split(',').map((tag) {
+                    final t = tag.trim();
+                    final isCwc = t.toLowerCase().contains('cwc');
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(4)),
-                      child: Text(tag.trim(), style: const TextStyle(fontSize: 11)),
+                      decoration: BoxDecoration(
+                        color: isCwc ? Colors.yellow[300] : Colors.grey[200],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        t,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: isCwc ? Colors.orange[900] : null,
+                        ),
+                      ),
                     );
                   }).toList(),
                 ),

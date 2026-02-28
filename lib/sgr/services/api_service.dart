@@ -10,8 +10,8 @@ import '../pages/login_page.dart';
 export '../models/order.dart' show OrderStatus, DeliveryPerson, FloristPerson, OrderStatusHistory;
 
 class ApiService {
-  static const String baseUrl = 'https://preprod.hellosecretgarden.com/south-fast';
-  // static const String baseUrl = 'https://www.hellosecretgarden.com/south-fast';
+  // static const String baseUrl = 'https://preprod.hellosecretgarden.com/south-fast';
+  static const String baseUrl = 'https://www.hellosecretgarden.com/south-fast';
   // static const String baseUrl = 'https://fast.xrdev.top/south-fast';
   static String? _token;
   static const Duration _timeout = Duration(seconds: 30);
@@ -405,6 +405,45 @@ class ApiService {
         throw Exception('连接超时: 服务器响应时间过长，请稍后重试');
       }
       throw Exception('更新状态失败: $e');
+    }
+  }
+
+  // 修改订单标签
+  static Future<bool> updateOrderTags({
+    required int orderId,
+    required String tags,
+  }) async {
+    try {
+      final url = Uri.parse('$baseUrl/mall/mallorder/updateByTags');
+      final body = jsonEncode({
+        'id': orderId,
+        'tags': tags,
+      });
+
+      final response = await http
+          .post(url, headers: _headers, body: body)
+          .timeout(_timeout);
+
+      await _checkUnauthorized(response);
+
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+        if (jsonData['code'] == 0) {
+          return true;
+        } else {
+          throw Exception(jsonData['msg'] ?? '更新标签失败');
+        }
+      } else {
+        throw Exception('更新标签失败: HTTP ${response.statusCode}');
+      }
+    } on SocketException catch (e) {
+      throw Exception('网络连接失败: 无法连接到服务器。请检查网络连接。\n错误详情: $e');
+    } catch (e) {
+      if (e.toString().contains('TimeoutException') || 
+          e.toString().contains('timeout')) {
+        throw Exception('连接超时: 服务器响应时间过长，请稍后重试');
+      }
+      throw Exception('更新标签失败: $e');
     }
   }
 

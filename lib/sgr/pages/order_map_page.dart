@@ -7,6 +7,7 @@ import '../models/order.dart';
 import '../services/api_service.dart';
 import '../utils/storage.dart';
 import '../widgets/order_card_sheet.dart';
+import '../services/stomp_service.dart';
 import 'order_list_page.dart';
 import 'order_operation_page.dart';
 
@@ -50,6 +51,35 @@ class _OrderMapPageState extends State<OrderMapPage> {
   void initState() {
     super.initState();
     _initLoad();
+    _initStomp();
+  }
+
+  void _initStomp() {
+    StompService().connect(
+      () {
+        print('[OrderMapPage] STOMP connected successfully.');
+        // Subscribe to order changes
+        StompService.subscribe('/topic/orderChange', (data) {
+          print('[OrderMapPage] Received /topic/orderChange: $data');
+          _loadOrders();
+        });
+
+        // Subscribe to new orders
+        StompService.subscribe('/topic/orderAdd', (data) {
+          print('[OrderMapPage] Received /topic/orderAdd: $data');
+          _loadOrders();
+        });
+      },
+      (error) {
+        print('[OrderMapPage] STOMP connection error: $error');
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    StompService.disconnect();
+    super.dispose();
   }
 
   Future<void> _initLoad() async {
