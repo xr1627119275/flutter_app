@@ -673,7 +673,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
           _mapController?.animateCamera(
             CameraUpdate.newLatLngZoom(
               LatLng(validOrders.first.latitude!, validOrders.first.longitude!),
-              12,
+              10,
             ),
           );
         } catch (_) {
