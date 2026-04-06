@@ -22,6 +22,23 @@ class _OrderMapPageState extends State<OrderMapPage> {
   GoogleMapController? _mapController;
   String? _roleName;
   bool _disposed = false;
+  static const String _mapStyle = '''
+[
+  {
+    "featureType": "poi",
+    "stylers": [
+      { "visibility": "off" }
+    ]
+  },
+  {
+    "featureType": "transit",
+    "elementType": "labels.icon",
+    "stylers": [
+      { "visibility": "off" }
+    ]
+  }
+]
+''';
 
   bool get _isAdmin =>
       _roleName == '管理员' || _roleName == 'Admin' || _roleName == 'Administrator';
@@ -222,14 +239,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
       _markers = markers;
     });
 
-    // Delay adjusting map view to ensure map is fully initialized
-    if (_markers.isNotEmpty && _mapController != null) {
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && !_disposed && _mapController != null) {
-          _fitBounds();
-        }
-      });
-    }
+    // Keep camera fixed to the configured center/zoom; do not auto-fit all markers.
   }
 
   // 判断订单日期类型
@@ -1097,16 +1107,11 @@ class _OrderMapPageState extends State<OrderMapPage> {
                 : GoogleMap(
                     onMapCreated: (controller) {
                       _mapController = controller;
-                      if (_markers.isNotEmpty) {
-                        Future.delayed(const Duration(milliseconds: 500), () {
-                          if (mounted && !_disposed && _mapController != null) {
-                            _fitBounds();
-                          }
-                        });
-                      }
+                      controller.setMapStyle(_mapStyle);
+                      // Keep camera fixed to the configured center/zoom.
                     },
                     initialCameraPosition: const CameraPosition(
-                      target: LatLng(40.7128, -74.0060),
+                      target: LatLng(40.72277654561845, -73.99637219055177),
                       zoom: 12,
                     ),
                     markers: _markers,
