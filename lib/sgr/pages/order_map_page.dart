@@ -21,6 +21,7 @@ class OrderMapPage extends StatefulWidget {
 class _OrderMapPageState extends State<OrderMapPage> {
   GoogleMapController? _mapController;
   String? _roleName;
+  bool _disposed = false;
 
   bool get _isAdmin =>
       _roleName == '管理员' || _roleName == 'Admin' || _roleName == 'Administrator';
@@ -57,20 +58,24 @@ class _OrderMapPageState extends State<OrderMapPage> {
   void _initStomp() {
     StompService().connect(
       () {
+        if (!mounted || _disposed) return;
         print('[OrderMapPage] STOMP connected successfully.');
         // Subscribe to order changes
         StompService.subscribe('/topic/orderChange', (data) {
           print('[OrderMapPage] Received /topic/orderChange: $data');
+          if (!mounted || _disposed) return;
           _loadOrders();
         });
 
         // Subscribe to new orders
         StompService.subscribe('/topic/orderAdd', (data) {
           print('[OrderMapPage] Received /topic/orderAdd: $data');
+          if (!mounted || _disposed) return;
           _loadOrders();
         });
       },
       (error) {
+        if (!mounted || _disposed) return;
         print('[OrderMapPage] STOMP connection error: $error');
       },
     );
@@ -78,6 +83,8 @@ class _OrderMapPageState extends State<OrderMapPage> {
 
   @override
   void dispose() {
+    _disposed = true;
+    _mapController = null;
     StompService.disconnect();
     super.dispose();
   }
@@ -95,6 +102,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
         ApiService.getDeliveryList(),
         ApiService.getFloristList(),
       ]);
+      if (!mounted || _disposed) return;
       setState(() {
         _roleName = roleName;
         _statusList = results[0] as List<OrderStatus>;
@@ -107,6 +115,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
   }
 
   Future<void> _loadOrders() async {
+    if (!mounted || _disposed) return;
     setState(() {
       _isLoading = true;
     });
@@ -154,6 +163,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
         fulfillment: '0',
         orderZip: false,
       );
+      if (!mounted || _disposed) return;
 
       if (response.code == 0) {
         setState(() {
@@ -164,8 +174,10 @@ class _OrderMapPageState extends State<OrderMapPage> {
         _showError(response.msg);
       }
     } catch (e) {
+      if (!mounted || _disposed) return;
       _showError('Failed to load orders: $e');
     } finally {
+      if (!mounted || _disposed) return;
       setState(() {
         _isLoading = false;
       });
@@ -181,6 +193,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
     final filtered = _filteredOrders;
 
     for (int index = 0; index < filtered.length; index++) {
+      if (!mounted || _disposed) return;
       final order = filtered[index];
       if (order.latitude != null && 
           order.longitude != null &&
@@ -212,7 +225,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
     // Delay adjusting map view to ensure map is fully initialized
     if (_markers.isNotEmpty && _mapController != null) {
       Future.delayed(const Duration(milliseconds: 500), () {
-        if (mounted && _mapController != null) {
+        if (mounted && !_disposed && _mapController != null) {
           _fitBounds();
         }
       });
@@ -599,7 +612,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
   }
 
   void _fitBounds() {
-    if (_orders.isEmpty || _mapController == null) return;
+    if (!mounted || _disposed || _orders.isEmpty || _mapController == null) return;
 
     final validOrders = _orders
         .where((o) => o.latitude != null && 
@@ -646,12 +659,16 @@ class _OrderMapPageState extends State<OrderMapPage> {
       print('Error fitting bounds: $e');
       // If error, at least move to first order position
       if (validOrders.isNotEmpty) {
-        _mapController?.animateCamera(
-          CameraUpdate.newLatLngZoom(
-            LatLng(validOrders.first.latitude!, validOrders.first.longitude!),
-            12,
-          ),
-        );
+        try {
+          _mapController?.animateCamera(
+            CameraUpdate.newLatLngZoom(
+              LatLng(validOrders.first.latitude!, validOrders.first.longitude!),
+              12,
+            ),
+          );
+        } catch (_) {
+          // Ignore map controller lifecycle race during page transitions.
+        }
       }
     }
   }
@@ -1082,7 +1099,7 @@ class _OrderMapPageState extends State<OrderMapPage> {
                       _mapController = controller;
                       if (_markers.isNotEmpty) {
                         Future.delayed(const Duration(milliseconds: 500), () {
-                          if (mounted) {
+                          if (mounted && !_disposed && _mapController != null) {
                             _fitBounds();
                           }
                         });
