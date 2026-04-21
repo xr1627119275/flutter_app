@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'order_query_models.dart';
+import 'pages/other_orders_page.dart';
+import 'widgets/order_details_card.dart';
 import 'sgr/sgr_entry.dart';
 import 'sgr/utils/storage.dart';
 import 'sgr/services/api_service.dart';
@@ -91,288 +95,6 @@ class MyApp extends StatelessWidget {
         ),
       ),
       home: const OrderQueryPage(),
-    );
-  }
-}
-
-class OrderQueryResult {
-  const OrderQueryResult({
-    required this.product,
-    required this.recipient,
-    required this.address,
-    required this.message,
-    required this.status,
-    required this.imageUrl,
-    required this.otherOrders,
-  });
-
-  final String product;
-  final String recipient;
-  final String address;
-  final String message;
-  final String status;
-  final String imageUrl;
-  final List<OtherOrderItem> otherOrders;
-
-  factory OrderQueryResult.fromResponse(Map<String, dynamic> response) {
-    final mallOrder = (response['mallOrder'] as Map<String, dynamic>?) ??
-        const <String, dynamic>{};
-    final otherOrdersJson = response['otherOrders'] as List<dynamic>? ?? const [];
-
-    final recipientParts = [
-      mallOrder['fristName']?.toString().trim() ?? '',
-      mallOrder['lastName']?.toString().trim() ?? '',
-      mallOrder['recipientFirstName']?.toString().trim() ?? '',
-      mallOrder['recipientLastName']?.toString().trim() ?? '',
-    ].where((part) => part.isNotEmpty).toList();
-
-    final state = _readFirstAvailable(mallOrder, const ['state', 'province']) ?? '';
-    final zip = _readFirstAvailable(mallOrder, const ['userZip', 'zipCode']) ?? '';
-    final stateZip = [state, zip].where((part) => part.isNotEmpty).join(' ');
-
-    final addressParts = [
-      _readFirstAvailable(mallOrder, const ['address', 'address1']),
-      mallOrder['address2']?.toString().trim(),
-      mallOrder['city']?.toString().trim(),
-      stateZip,
-    ].where((part) => part != null && part.toString().trim().isNotEmpty).toList();
-
-    return OrderQueryResult(
-      product: _readFirstAvailable(mallOrder, const ['productName', 'product']) ?? '-',
-      recipient: recipientParts.isNotEmpty
-          ? recipientParts.join(' ')
-          : (_readFirstAvailable(mallOrder, const ['recipient', 'recipientName']) ?? '-'),
-      address: _readFirstAvailable(mallOrder, const ['fullAddress']) ??
-          (addressParts.isNotEmpty ? addressParts.join(', ') : '-'),
-      message: _normalizeMessage(
-            _readFirstAvailable(mallOrder, const ['note', 'message']) ?? '-',
-          ),
-      status: _readFirstAvailable(mallOrder, const ['orderStatus', 'status']) ?? '-',
-      imageUrl: _readFirstAvailable(mallOrder, const ['flowerPicture', 'imageUrl']) ?? '',
-      otherOrders: otherOrdersJson
-          .whereType<Map<String, dynamic>>()
-          .map(OtherOrderItem.fromJson)
-          .toList(),
-    );
-  }
-
-  static String _normalizeMessage(String value) {
-    return value
-        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-        .replaceAll('&nbsp;', ' ')
-        .trim();
-  }
-
-  static String? _readFirstAvailable(
-    Map<String, dynamic> json,
-    List<String> keys,
-  ) {
-    for (final key in keys) {
-      final value = json[key];
-      if (value != null) {
-        final text = value.toString().trim();
-        if (text.isNotEmpty) {
-          return text;
-        }
-      }
-    }
-    return null;
-  }
-}
-
-class OtherOrderItem {
-  const OtherOrderItem({
-    required this.orderNumber,
-    required this.productName,
-    required this.status,
-    required this.recipient,
-    required this.createDate,
-  });
-
-  final String orderNumber;
-  final String productName;
-  final String status;
-  final String recipient;
-  final String createDate;
-
-  factory OtherOrderItem.fromJson(Map<String, dynamic> json) {
-    final recipientParts = [
-      json['fristName']?.toString().trim() ?? '',
-      json['lastName']?.toString().trim() ?? '',
-      json['recipientFirstName']?.toString().trim() ?? '',
-      json['recipientLastName']?.toString().trim() ?? '',
-    ].where((part) => part.isNotEmpty).toList();
-
-    return OtherOrderItem(
-      orderNumber: OrderQueryResult._readFirstAvailable(
-            json,
-            const ['orderNumber', 'externalId'],
-          ) ??
-          '-',
-      productName: OrderQueryResult._readFirstAvailable(
-            json,
-            const ['productName', 'product'],
-          ) ??
-          '-',
-      status: OrderQueryResult._readFirstAvailable(
-            json,
-            const ['orderStatus', 'status'],
-          ) ??
-          '-',
-      recipient: recipientParts.isNotEmpty
-          ? recipientParts.join(' ')
-          : (OrderQueryResult._readFirstAvailable(
-                json,
-                const ['recipient', 'recipientName'],
-              ) ??
-              '-'),
-      createDate: json['createDate']?.toString().trim().isNotEmpty == true
-          ? json['createDate'].toString().trim()
-          : '-',
-    );
-  }
-}
-
-class _InfoItemData {
-  const _InfoItemData({
-    required this.label,
-    required this.value,
-    required this.icon,
-    this.multiline = false,
-    this.trailing,
-    this.emphasized = false,
-  });
-
-  final String label;
-  final String value;
-  final IconData icon;
-  final bool multiline;
-  final Widget? trailing;
-  final bool emphasized;
-}
-
-class OtherOrdersPage extends StatelessWidget {
-  const OtherOrdersPage({
-    super.key,
-    required this.orders,
-  });
-
-  final List<OtherOrderItem> orders;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('More Orders'),
-      ),
-      body: orders.isEmpty
-          ? const Center(
-              child: Text(
-                'No other orders found',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: orders.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final order = orders[index];
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                order.productName,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF18212F),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            _OtherOrderStatusChip(status: order.status),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Order No: ${order.orderNumber}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Recipient: ${order.recipient}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Create Time: ${order.createDate}',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Color(0xFF475569),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-    );
-  }
-}
-
-class _OtherOrderStatusChip extends StatelessWidget {
-  const _OtherOrderStatusChip({required this.status});
-
-  final String status;
-
-  Color _statusColor(String status) {
-    final normalized = status.toLowerCase();
-    if (normalized.contains('delivered')) {
-      return const Color(0xFF1F9D61);
-    }
-    if (normalized.contains('cancel')) {
-      return const Color(0xFFE05252);
-    }
-    if (normalized.contains('out for delivery') || normalized.contains('ready')) {
-      return const Color(0xFFF59E0B);
-    }
-    return const Color(0xFF64748B);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final color = _statusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
     );
   }
 }
@@ -469,26 +191,28 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
 
     try {
       final url = Uri.parse(
-          ApiService.baseUrl + '/mall/mallorder/infoByEmailAndOrderNo?email=${Uri.encodeComponent(email)}&orderNo=$orderNo',
+        ApiService.baseUrl + '/mall/mallorder/infoByEmailAndOrderNo?email=${Uri.encodeComponent(email)}&orderNo=$orderNo',
       );
 
       final response = await http.get(url);
 
       if (response.statusCode == 200) {
-          final data = json.decode(response.body);
-          if (data['code'] == 0 && data['msg'] == 'success') {
-            final mallOrder = data['mallOrder'] as Map<String, dynamic>?;
-            if (mallOrder != null) {
-              final result = OrderQueryResult.fromResponse(data as Map<String, dynamic>);
-              setState(() {
-                _queryResult = result;
-                _errorMessage = null;
-                _imageLoaded = result.imageUrl.isEmpty;
-              });
-              if (result.imageUrl.isNotEmpty) {
-                _preloadImage(result.imageUrl);
-              }
-            } else {
+        final data = json.decode(response.body);
+        if (data['code'] == 0 && data['msg'] == 'success') {
+          final mallOrder = data['mallOrder'] as Map<String, dynamic>?;
+          if (mallOrder != null) {
+            final result = OrderQueryResult.fromResponse(
+              data as Map<String, dynamic>,
+            );
+            setState(() {
+              _queryResult = result;
+              _errorMessage = null;
+              _imageLoaded = result.imageUrl.isEmpty;
+            });
+            if (result.imageUrl.isNotEmpty) {
+              _preloadImage(result.imageUrl);
+            }
+          } else {
             setState(() {
               _errorMessage = 'Order information not found';
               _queryResult = null;
@@ -569,160 +293,11 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
     }
   }
 
-  Widget _buildFormField({
-    required String label,
-    required String hint,
-    required IconData icon,
-    required TextEditingController controller,
-    required TextInputType keyboardType,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF1C2533),
-          ),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: controller,
-          keyboardType: keyboardType,
-          decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon: Icon(icon, size: 20),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoTile(_InfoItemData item) {
-    final isCompact = item.label == 'Recipient' || item.label == 'Address';
-    final isEmphasized = item.emphasized;
-
-    return Container(
-      padding: EdgeInsets.all(isEmphasized ? 14 : (isCompact ? 10 : 12)),
-      decoration: BoxDecoration(
-        color: isEmphasized ? const Color(0xFFF3FAF6) : const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(isEmphasized ? 18 : (isCompact ? 14 : 16)),
-        border: Border.all(
-          color: isEmphasized ? const Color(0xFFDCEFE3) : const Color(0xFFE8EDF5),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment:
-            item.multiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: isEmphasized ? 38 : (isCompact ? 30 : 34),
-            height: isEmphasized ? 38 : (isCompact ? 30 : 34),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2E7D5A).withValues(alpha: isEmphasized ? 0.14 : 0.10),
-              borderRadius: BorderRadius.circular(isEmphasized ? 12 : 10),
-            ),
-            child: Icon(
-              item.icon,
-              color: const Color(0xFF2E7D5A),
-              size: isEmphasized ? 20 : 18,
-            ),
-          ),
-          SizedBox(width: isEmphasized ? 12 : (isCompact ? 8 : 10)),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.label,
-                        style: TextStyle(
-                          fontSize: isEmphasized ? 12 : 11,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.2,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ),
-                    if (item.trailing != null) ...[
-                      const SizedBox(width: 8),
-                      item.trailing!,
-                    ],
-                  ],
-                ),
-                SizedBox(height: isCompact ? 2 : 4),
-                Text(
-                  item.value.isEmpty ? '-' : item.value,
-                  style: TextStyle(
-                    fontSize: isEmphasized ? 15 : (isCompact ? 13 : 14),
-                    height: isCompact ? 1.25 : 1.35,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF18212F),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _statusColor(String status) {
-    final normalized = status.toLowerCase();
-    if (normalized.contains('delivered')) {
-      return const Color(0xFF1F9D61);
+  Future<void> _showImagePreview(String imageUrl) async {
+    if (!mounted) {
+      return;
     }
-    if (normalized.contains('cancel')) {
-      return const Color(0xFFE05252);
-    }
-    if (normalized.contains('out for delivery') || normalized.contains('ready')) {
-      return const Color(0xFFF59E0B);
-    }
-    return const Color(0xFF64748B);
-  }
-
-  Widget _buildStatusChip(String status) {
-    final color = _statusColor(status);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            status,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showImagePreview(String imageUrl) {
-    showDialog<void>(
+    await showDialog<void>(
       context: context,
       builder: (context) {
         return Dialog.fullscreen(
@@ -768,135 +343,34 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
     );
   }
 
-  Widget _buildImageSection(OrderQueryResult result) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE8EDF5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            children: [
-              Icon(Icons.image_outlined, size: 18, color: Color(0xFF2E7D5A)),
-              SizedBox(width: 8),
-              Text(
-                'Preview Image',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1C2533),
-                ),
-              ),
-            ],
+  Widget _buildFormField({
+    required String label,
+    required String hint,
+    required IconData icon,
+    required TextEditingController controller,
+    required TextInputType keyboardType,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1C2533),
           ),
-          const SizedBox(height: 14),
-          if (result.imageUrl.isEmpty)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 36),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE8EDF5)),
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.image_not_supported_outlined,
-                    size: 40,
-                    color: Colors.grey.shade500,
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'No image available',
-                    style: TextStyle(color: Colors.grey.shade700),
-                  ),
-                ],
-              ),
-            )
-          else if (!_imageLoaded)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 42),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: const Color(0xFFE8EDF5)),
-              ),
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
-            )
-          else
-            GestureDetector(
-              onTap: () => _showImagePreview(result.imageUrl),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: Stack(
-                  children: [
-                    AspectRatio(
-                      aspectRatio: 4 / 3,
-                      child: Image.network(
-                        result.imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.white,
-                            child: const Center(
-                              child: Icon(
-                                Icons.error_outline,
-                                size: 48,
-                                color: Colors.red,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    Positioned(
-                      top: 10,
-                      right: 10,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.45),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.zoom_out_map,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                            SizedBox(width: 6),
-                            Text(
-                              'Preview',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, size: 20),
+          ),
+        ),
+      ],
     );
   }
 
@@ -906,108 +380,42 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
       return const SizedBox.shrink();
     }
 
-    final primaryItems = [
-      _InfoItemData(
-        label: 'Product',
-        value: result.product,
-        icon: Icons.local_florist_outlined,
-        trailing: _buildStatusChip(result.status),
-        emphasized: true,
-      ),
-      _InfoItemData(
-        label: 'Recipient',
-        value: result.recipient,
-        icon: Icons.person_outline,
-      ),
-    ];
-
-    final secondaryItems = [
-      _InfoItemData(
-        label: 'Address',
-        value: result.address,
-        icon: Icons.location_on_outlined,
-        multiline: true,
-      ),
-      _InfoItemData(
-        label: 'Message',
-        value: result.message,
-        icon: Icons.chat_bubble_outline,
-        multiline: true,
-      ),
-    ];
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final useTwoColumns = constraints.maxWidth >= 560;
-
-                if (!useTwoColumns) {
-                  return Column(
-                    children: [
-                      ...primaryItems.map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _buildInfoTile(item),
-                        ),
-                      ),
-                      ...secondaryItems.map(
-                        (item) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: _buildInfoTile(item),
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                return Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: _buildInfoTile(primaryItems[0])),
-                        const SizedBox(width: 12),
-                        Expanded(child: _buildInfoTile(primaryItems[1])),
-                      ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (result.otherOrders.isNotEmpty) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => OtherOrdersPage(
+                      orders: result.otherOrders,
+                      onOpenOrder: (order) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => OrderDetailsPage(order: order),
+                          ),
+                        );
+                      },
                     ),
-                    const SizedBox(height: 10),
-                    ...secondaryItems.map(
-                      (item) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _buildInfoTile(item),
-                      ),
-                    ),
-                  ],
+                  ),
                 );
               },
+              icon: const Icon(Icons.list_alt_outlined),
+              label: Text('More Orders (${result.otherOrders.length})'),
             ),
-            const SizedBox(height: 8),
-            _buildImageSection(result),
-            if (result.otherOrders.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => OtherOrdersPage(orders: result.otherOrders),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.list_alt_outlined),
-                  label: Text('More Order (${result.otherOrders.length})'),
-                ),
-              ),
-            ],
-          ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        OrderDetailsCard(
+          result: result,
+          imageLoaded: _imageLoaded,
+          onPreviewImage: _showImagePreview,
+          showMoreOrdersButton: false,
         ),
-      ),
+      ],
     );
   }
 
@@ -1076,7 +484,7 @@ class _OrderQueryPageState extends State<OrderQueryPage> {
               hint: 'Enter your order number',
               icon: Icons.confirmation_number_outlined,
               controller: _orderNoController,
-              keyboardType: TextInputType.number,
+              keyboardType: TextInputType.text,
             ),
             const SizedBox(height: 22),
             ElevatedButton(
