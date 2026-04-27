@@ -8,8 +8,10 @@ class OrderQueryResult {
     required this.imageUrl,
     required this.otherOrders,
     required this.createTime,
+    this.orderNumber = '-',
   });
 
+  final String orderNumber;
   final String product;
   final String recipient;
   final String address;
@@ -31,24 +33,17 @@ class OrderQueryResult {
       mallOrder['recipientLastName']?.toString().trim() ?? '',
     ].where((part) => part.isNotEmpty).toList();
 
-    final state = _readFirstAvailable(mallOrder, const ['state', 'province']) ?? '';
-    final zip = _readFirstAvailable(mallOrder, const ['userZip', 'zipCode']) ?? '';
-    final stateZip = [state, zip].where((part) => part.isNotEmpty).join(' ');
-
-    final addressParts = [
-      _readFirstAvailable(mallOrder, const ['address', 'address1']),
-      mallOrder['address2']?.toString().trim(),
-      mallOrder['city']?.toString().trim(),
-      stateZip,
-    ].where((part) => part != null && part.toString().trim().isNotEmpty).toList();
-
     return OrderQueryResult(
+      orderNumber: _readFirstAvailable(
+            mallOrder,
+            const ['orderNumber', 'orderNo', 'externalId'],
+          ) ??
+          '-',
       product: _readFirstAvailable(mallOrder, const ['productName', 'product']) ?? '-',
       recipient: recipientParts.isNotEmpty
           ? recipientParts.join(' ')
           : (_readFirstAvailable(mallOrder, const ['recipient', 'recipientName']) ?? '-'),
-      address: _readFirstAvailable(mallOrder, const ['fullAddress']) ??
-          (addressParts.isNotEmpty ? addressParts.join(', ') : '-'),
+      address: _readAddress(mallOrder),
       message: _normalizeMessage(
             _readFirstAvailable(mallOrder, const ['note', 'message']) ?? '-',
           ),
@@ -68,7 +63,23 @@ class OrderQueryResult {
     return value
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll('&nbsp;', ' ')
-        .trim();
+      .trim();
+  }
+
+  static String _readAddress(Map<String, dynamic> json) {
+    final state = _readFirstAvailable(json, const ['state', 'province']) ?? '';
+    final zip = _readFirstAvailable(json, const ['userZip', 'zipCode']) ?? '';
+    final stateZip = [state, zip].where((part) => part.isNotEmpty).join(' ');
+
+    final addressParts = [
+      _readFirstAvailable(json, const ['address', 'address1']),
+      json['address2']?.toString().trim(),
+      json['city']?.toString().trim(),
+      stateZip,
+    ].where((part) => part != null && part.toString().trim().isNotEmpty).toList();
+
+    return _readFirstAvailable(json, const ['fullAddress']) ??
+        (addressParts.isNotEmpty ? addressParts.join(', ') : '-');
   }
 
   static String? _readFirstAvailable(
@@ -151,6 +162,9 @@ class OtherOrderItem {
     required this.status,
     required this.recipient,
     required this.createDate,
+    this.address = '-',
+    this.message = '-',
+    this.imageUrl = '',
   });
 
   final String orderNumber;
@@ -158,6 +172,9 @@ class OtherOrderItem {
   final String status;
   final String recipient;
   final String createDate;
+  final String address;
+  final String message;
+  final String imageUrl;
 
   factory OtherOrderItem.fromJson(Map<String, dynamic> json) {
     final recipientParts = [
@@ -170,7 +187,7 @@ class OtherOrderItem {
     return OtherOrderItem(
       orderNumber: OrderQueryResult._readFirstAvailable(
             json,
-            const ['orderNumber', 'externalId'],
+            const ['orderNumber', 'orderNo', 'externalId'],
           ) ??
           '-',
       productName: OrderQueryResult._readFirstAvailable(
@@ -193,6 +210,13 @@ class OtherOrderItem {
       createDate: OrderQueryResult._formatUtcToLocal(
         OrderQueryResult._readFirstAvailable(json, const ['createTime', 'createDate']),
       ),
+      address: OrderQueryResult._readAddress(json),
+      message: OrderQueryResult._normalizeMessage(
+        OrderQueryResult._readFirstAvailable(json, const ['note', 'message']) ?? '-',
+      ),
+      imageUrl:
+          OrderQueryResult._readFirstAvailable(json, const ['flowerPicture', 'imageUrl']) ??
+              '',
     );
   }
 }

@@ -36,6 +36,16 @@ class OrderDetailsCard extends StatelessWidget {
 
     final secondaryItems = [
       _InfoItemData(
+        label: 'Order No',
+        value: result.orderNumber,
+        icon: Icons.confirmation_number_outlined,
+      ),
+      _InfoItemData(
+        label: 'Recipient',
+        value: result.recipient,
+        icon: Icons.person_outline,
+      ),
+      _InfoItemData(
         label: 'Address',
         value: result.address,
         icon: Icons.location_on_outlined,
@@ -314,7 +324,9 @@ class OrderDetailsCard extends StatelessWidget {
   }
 
   Widget _buildInfoTile(_InfoItemData item) {
-    final isCompact = item.label == 'Recipient' || item.label == 'Address';
+    final isCompact = item.label == 'Order No' ||
+        item.label == 'Recipient' ||
+        item.label == 'Address';
     final isEmphasized = item.emphasized;
 
     return Container(
@@ -397,19 +409,22 @@ class OrderDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title =
+        order.orderNumber == '-' ? 'Order Details' : 'Order ${order.orderNumber}';
     final result = OrderQueryResult(
+      orderNumber: order.orderNumber,
       product: order.productName,
       recipient: order.recipient,
-      address: '-',
-      message: '-',
+      address: order.address,
+      message: order.message,
       status: order.status,
-      imageUrl: '',
+      imageUrl: order.imageUrl,
       otherOrders: const [],
       createTime: order.createDate,
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Order Details')),
+      appBar: AppBar(title: Text(title)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: OrderDetailsCard(
