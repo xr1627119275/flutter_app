@@ -24,7 +24,8 @@ class OrderQueryResult {
   factory OrderQueryResult.fromResponse(Map<String, dynamic> response) {
     final mallOrder = (response['mallOrder'] as Map<String, dynamic>?) ??
         const <String, dynamic>{};
-    final otherOrdersJson = response['otherOrders'] as List<dynamic>? ?? const [];
+    final otherOrdersJson =
+        response['otherOrders'] as List<dynamic>? ?? const [];
 
     final recipientParts = [
       mallOrder['fristName']?.toString().trim() ?? '',
@@ -39,16 +40,26 @@ class OrderQueryResult {
             const ['orderNumber', 'orderNo', 'externalId'],
           ) ??
           '-',
-      product: _readFirstAvailable(mallOrder, const ['productName', 'product']) ?? '-',
+      product:
+          _readFirstAvailable(mallOrder, const ['productName', 'product']) ??
+              '-',
       recipient: recipientParts.isNotEmpty
           ? recipientParts.join(' ')
-          : (_readFirstAvailable(mallOrder, const ['recipient', 'recipientName']) ?? '-'),
+          : (_readFirstAvailable(
+                mallOrder,
+                const ['recipient', 'recipientName'],
+              ) ??
+              '-'),
       address: _readAddress(mallOrder),
       message: _normalizeMessage(
-            _readFirstAvailable(mallOrder, const ['note', 'message']) ?? '-',
-          ),
-      status: _readFirstAvailable(mallOrder, const ['orderStatus', 'status']) ?? '-',
-      imageUrl: _readFirstAvailable(mallOrder, const ['flowerPicture', 'imageUrl']) ?? '',
+        _readFirstAvailable(mallOrder, const ['note', 'message']) ?? '-',
+      ),
+      status:
+          _readFirstAvailable(mallOrder, const ['orderStatus', 'status']) ??
+              '-',
+      imageUrl:
+          _readFirstAvailable(mallOrder, const ['flowerPicture', 'imageUrl']) ??
+              '',
       otherOrders: otherOrdersJson
           .whereType<Map<String, dynamic>>()
           .map(OtherOrderItem.fromJson)
@@ -63,7 +74,7 @@ class OrderQueryResult {
     return value
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll('&nbsp;', ' ')
-      .trim();
+        .trim();
   }
 
   static String _readAddress(Map<String, dynamic> json) {
@@ -76,7 +87,9 @@ class OrderQueryResult {
       json['address2']?.toString().trim(),
       json['city']?.toString().trim(),
       stateZip,
-    ].where((part) => part != null && part.toString().trim().isNotEmpty).toList();
+    ].where((part) {
+      return part != null && part.toString().trim().isNotEmpty;
+    }).toList();
 
     return _readFirstAvailable(json, const ['fullAddress']) ??
         (addressParts.isNotEmpty ? addressParts.join(', ') : '-');
@@ -121,8 +134,10 @@ class OrderQueryResult {
       final minute = int.parse(matched.group(5)!);
       final second = int.parse(matched.group(6) ?? '0');
       final fraction = (matched.group(7) ?? '').padRight(6, '0');
-      final millisecond = fraction.isEmpty ? 0 : int.parse(fraction.substring(0, 3));
-      final microsecond = fraction.isEmpty ? 0 : int.parse(fraction.substring(3, 6));
+      final millisecond =
+          fraction.isEmpty ? 0 : int.parse(fraction.substring(0, 3));
+      final microsecond =
+          fraction.isEmpty ? 0 : int.parse(fraction.substring(3, 6));
 
       var utc = DateTime.utc(
         year,
@@ -208,15 +223,21 @@ class OtherOrderItem {
               ) ??
               '-'),
       createDate: OrderQueryResult._formatUtcToLocal(
-        OrderQueryResult._readFirstAvailable(json, const ['createTime', 'createDate']),
+        OrderQueryResult._readFirstAvailable(
+          json,
+          const ['createTime', 'createDate'],
+        ),
       ),
       address: OrderQueryResult._readAddress(json),
       message: OrderQueryResult._normalizeMessage(
-        OrderQueryResult._readFirstAvailable(json, const ['note', 'message']) ?? '-',
+        OrderQueryResult._readFirstAvailable(json, const ['note', 'message']) ??
+            '-',
       ),
-      imageUrl:
-          OrderQueryResult._readFirstAvailable(json, const ['flowerPicture', 'imageUrl']) ??
-              '',
+      imageUrl: OrderQueryResult._readFirstAvailable(
+            json,
+            const ['flowerPicture', 'imageUrl'],
+          ) ??
+          '',
     );
   }
 }

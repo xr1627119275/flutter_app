@@ -333,7 +333,9 @@ class OrderDetailsCard extends StatelessWidget {
       padding: EdgeInsets.all(isEmphasized ? 14 : (isCompact ? 10 : 12)),
       decoration: BoxDecoration(
         color: isEmphasized ? const Color(0xFFF3FAF6) : const Color(0xFFF8FAFD),
-        borderRadius: BorderRadius.circular(isEmphasized ? 18 : (isCompact ? 14 : 16)),
+        borderRadius: BorderRadius.circular(
+          isEmphasized ? 18 : (isCompact ? 14 : 16),
+        ),
         border: Border.all(
           color: isEmphasized ? const Color(0xFFDCEFE3) : const Color(0xFFE8EDF5),
         ),
@@ -346,7 +348,9 @@ class OrderDetailsCard extends StatelessWidget {
             width: isEmphasized ? 38 : (isCompact ? 30 : 34),
             height: isEmphasized ? 38 : (isCompact ? 30 : 34),
             decoration: BoxDecoration(
-              color: const Color(0xFF2E7D5A).withValues(alpha: isEmphasized ? 0.14 : 0.10),
+              color: const Color(0xFF2E7D5A).withValues(
+                alpha: isEmphasized ? 0.14 : 0.10,
+              ),
               borderRadius: BorderRadius.circular(isEmphasized ? 12 : 10),
             ),
             child: Icon(
@@ -407,10 +411,58 @@ class OrderDetailsPage extends StatelessWidget {
 
   final OtherOrderItem order;
 
+  Future<void> _showImagePreview(BuildContext context, String imageUrl) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog.fullscreen(
+          backgroundColor: Colors.black,
+          child: Stack(
+            children: [
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.8,
+                  maxScale: 4,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const Center(
+                        child: Icon(
+                          Icons.error_outline,
+                          color: Colors.white,
+                          size: 48,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 16,
+                right: 16,
+                child: SafeArea(
+                  child: IconButton.filled(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.12),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close, color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final title =
-        order.orderNumber == '-' ? 'Order Details' : 'Order ${order.orderNumber}';
+    final title = order.orderNumber == '-'
+        ? 'Order Details'
+        : 'Order ${order.orderNumber}';
     final result = OrderQueryResult(
       orderNumber: order.orderNumber,
       product: order.productName,
@@ -430,7 +482,7 @@ class OrderDetailsPage extends StatelessWidget {
         child: OrderDetailsCard(
           result: result,
           imageLoaded: true,
-          onPreviewImage: (_) {},
+          onPreviewImage: (imageUrl) => _showImagePreview(context, imageUrl),
           showMoreOrdersButton: false,
         ),
       ),
